@@ -1,0 +1,159 @@
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+import javafx.util.StringConverter;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
+
+public class BillableHoursApp extends Application {
+
+    private final Map<LocalDate, Double> hoursData = new HashMap<>();
+    private LocalDate semesterEndDate = null;
+    private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    @Override
+    public void start(Stage primaryStage) {
+        primaryStage.setTitle("Billable Hours Tracker");
+
+        // Calendar Date Picker
+        DatePicker datePicker = new DatePicker(LocalDate.now());
+        datePicker.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(LocalDate date) {
+                return date != null ? dateFormatter.format(date) : "";
+            }
+
+            @Override
+            public LocalDate fromString(String string) {
+                return string != null && !string.isEmpty() ? LocalDate.parse(string, dateFormatter) : null;
+            }
+        });
+
+        // Input for Billable Hours
+        TextField hoursField = new TextField();
+        hoursField.setPromptText("Enter hours");
+
+        // Add Hours Button
+        Button addHoursButton = new Button("Add Hours");
+        addHoursButton.setOnAction(event -> {
+            LocalDate selectedDate = datePicker.getValue();
+            if (selectedDate == null) {
+                showAlert("Error", "Please select a date.");
+                return;
+            }
+            try {
+                double hours = Double.parseDouble(hoursField.getText());
+                hoursData.put(selectedDate, hoursData.getOrDefault(selectedDate, 0.0) + hours);
+                hoursField.clear();
+                showAlert("Success", "Added " + hours + " hours to " + selectedDate);
+            } catch (NumberFormatException e) {
+                showAlert("Error", "Invalid input. Please enter a number.");
+            }
+        });
+
+        // Set Semester End Date
+        TextField semesterEndField = new TextField();
+        semesterEndField.setPromptText("YYYY-MM-DD");
+        Button setSemesterEndButton = new Button("Set Semester End");
+        Label countdownLabel = new Label("Days Left in Semester: N/A");
+        setSemesterEndButton.setOnAction(event -> {
+            try {
+                semesterEndDate = LocalDate.parse(semesterEndField.getText(), dateFormatter);
+                updateCountdown(countdownLabel);
+            } catch (Exception e) {
+                showAlert("Error", "Invalid date format. Use YYYY-MM-DD.");
+            }
+        });
+
+        // Buttons to View Summaries
+        Button dailySummaryButton = new Button("View Daily Summary");
+        Button weeklySummaryButton = new Button("View Weekly Summary");
+        Button monthlySummaryButton = new Button("View Monthly Summary");
+        Label summaryLabel = new Label();
+
+        dailySummaryButton.setOnAction(event -> summaryLabel.setText(getDailySummary()));
+        weeklySummaryButton.setOnAction(event -> summaryLabel.setText(getWeeklySummary()));
+        monthlySummaryButton.setOnAction(event -> summaryLabel.setText(getMonthlySummary()));
+
+        // Layout
+        GridPane inputPane = new GridPane();
+        inputPane.setHgap(10);
+        inputPane.setVgap(10);
+        inputPane.setPadding(new Insets(10));
+        inputPane.add(new Label("Select Date:"), 0, 0);
+        inputPane.add(datePicker, 1, 0);
+        inputPane.add(new Label("Enter Hours:"), 0, 1);
+        inputPane.add(hoursField, 1, 1);
+        inputPane.add(addHoursButton, 2, 1);
+
+        VBox semesterPane = new VBox(10, new Label("Semester End Date:"), semesterEndField, setSemesterEndButton, countdownLabel);
+        semesterPane.setPadding(new Insets(10));
+
+        HBox summaryButtons = new HBox(10, dailySummaryButton, weeklySummaryButton, monthlySummaryButton);
+        VBox summaryPane = new VBox(10, summaryButtons, summaryLabel);
+        summaryPane.setPadding(new Insets(10));
+
+        VBox root = new VBox(10, inputPane, semesterPane, summaryPane);
+        root.setPadding(new Insets(10));
+
+        primaryStage.setScene(new Scene(root, 600, 400));
+        primaryStage.show();
+    }
+
+    private void updateCountdown(Label countdownLabel) {
+        if (semesterEndDate != null) {
+            long daysLeft = LocalDate.now().until(semesterEndDate).getDays();
+            if (daysLeft >= 0) {
+                countdownLabel.setText("Days Left in Semester: " + daysLeft);
+            } else {
+                countdownLabel.setText("Semester has ended.");
+            }
+        }
+    }
+
+    private String getDailySummary() {
+        StringBuilder summary = new StringBuilder("Daily Hours:\n");
+        hoursData.forEach((date, hours) -> summary.append(date).append(": ").append(hours).append(" hours\n"));
+        return summary.toString();
+    }
+
+    private String getWeeklySummary() {
+        Map<LocalDate, Double> weeklyData = new HashMap<>();
+        hoursData.forEach((date, hours) -> {
+            LocalDate weekStart = date.minusDays(date.getDayOfWeek().getValue() - 1);
+            weeklyData.put(weekStart, weeklyData.getOrDefault(weekStart, 0.0) + hours);
+        });
+        StringBuilder summary = new StringBuilder("Weekly Hours:\n");
+        weeklyData.forEach((week, hours) -> summary.append("Week of ").append(week).append(": ").append(hours).append(" hours\n"));
+        return summary.toString();
+    }
+
+    private String getMonthlySummary() {
+        Map<String, Double> monthlyData = new HashMap<>();
+        hoursData.forEach((date, hours) -> {
+            String month = date.getMonth() + " " + date.getYear();
+            monthlyData.put(month, monthlyData.getOrDefault(month, 0.0) + hours);
+        });
+        StringBuilder summary = new StringBuilder("Monthly Hours:\n");
+        monthlyData.forEach((month, hours) -> summary.append(month).append(": ").append(hours).append(" hours\n"));
+        return summary.toString();
+    }
+
+    private void showAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
